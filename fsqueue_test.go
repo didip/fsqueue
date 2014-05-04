@@ -22,12 +22,9 @@ func TestPush(t *testing.T) {
     chanName := "fsqueue-test"
     data     := []byte("{\"method\": \"Run\"}")
 
-    channel, _       := MakeChannel(chanName)
-    _, filename, err := channel.Push(data)
-
-    if err != nil {
-        t.Fatal(err)
-    }
+    channel, _  := MakeChannel(chanName)
+    _, filename := channel.Push(data)
+    <- channel.donePushChan
 
     if _, err := os.Stat(filename); os.IsNotExist(err) {
         t.Fatal(err)
@@ -42,6 +39,7 @@ func TestPop(t *testing.T) {
 
     channel, _  := MakeChannel(chanName)
     channel.Push(data)
+    <- channel.donePushChan
 
     payload, err := channel.Pop()
 

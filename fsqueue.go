@@ -24,12 +24,13 @@ func NewChannel(chanName string) (*Channel, error) {
     fullPath, err := FullPath(chanName)
     channel       := &Channel{}
 
-    channel.name        = chanName
-    channel.fullPath    = fullPath
-    channel.currentPath = fullPath + "/current"
-    channel.failedPath  = fullPath + "/failed"
-    channel.successPath = fullPath + "/success"
-    channel.deletedPath = fullPath + "/deleted"
+    channel.name         = chanName
+    channel.fullPath     = fullPath
+    channel.currentPath  = fullPath + "/current"
+    channel.failedPath   = fullPath + "/failed"
+    channel.successPath  = fullPath + "/success"
+    channel.deletedPath  = fullPath + "/deleted"
+    channel.donePushChan = make(chan bool)
 
     return channel, err
 }
@@ -53,12 +54,13 @@ func RemoveChannel(chanName string) error {
 }
 
 type Channel struct {
-    name        string
-    fullPath    string
-    currentPath string
-    failedPath  string
-    successPath string
-    deletedPath string
+    name         string
+    fullPath     string
+    currentPath  string
+    failedPath   string
+    successPath  string
+    deletedPath  string
+    donePushChan chan bool
 }
 
 func (c *Channel) MakeDirs() error {
@@ -85,11 +87,14 @@ func (c *Channel) PayloadId() (string, string) {
     return id, fullFilePath
 }
 
-func (c *Channel) Push(payloadBytes []byte) (string, string, error) {
+func (c *Channel) Push(payloadBytes []byte) (string, string) {
     id, fullFilePath := c.PayloadId()
-    err := ioutil.WriteFile(fullFilePath, payloadBytes, 0744)
+    go func() {
+        ioutil.WriteFile(fullFilePath, payloadBytes, 0744)
+        c.donePushChan <- true
+    }()
 
-    return id, fullFilePath, err
+    return id, fullFilePath
 }
 
 func (c *Channel) Pop() ([]byte, error) {
