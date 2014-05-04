@@ -1,6 +1,4 @@
-This is an implementation of queue using file system backend.
+### Persistent Queue on File System
 
-Using FUSE file system is recommended for production.
-
-This project is created to test the performance of various distributed file systems.
+This project is created to test the performance of various distributed file systems via FUSE interface.
 

@@ -3,67 +3,10 @@ package fsqueue
 import (
     "os"
     "os/user"
-    "fmt"
     "time"
     "strconv"
     "io/ioutil"
-    "sync"
 )
-
-type Channel struct {
-    name     string
-    fullpath string
-    sync.RWMutex
-}
-
-func (c *Channel) MakeDirs() error {
-    current := c.fullpath + "/current"
-    failed  := c.fullpath + "/failed"
-    success := c.fullpath + "/success"
-    deleted := c.fullpath + "/deleted"
-
-    err := os.MkdirAll(current, 0744)
-    if err != nil { return err }
-
-    err = os.MkdirAll(failed, 0744)
-    if err != nil { return err }
-
-    err = os.MkdirAll(success, 0744)
-    if err != nil { return err }
-
-    err = os.MkdirAll(deleted, 0744)
-    return err
-}
-
-func (c *Channel) Remove() error {
-    return os.RemoveAll(c.fullpath)
-}
-
-func (c *Channel) MakePayloadFilename() string {
-    return fmt.Sprintf("%s/current/-%s", c.fullpath, strconv.FormatInt(time.Now().UnixNano(), 10))
-}
-
-func (c *Channel) Push(payloadBytes []byte) (string, error) {
-    filename := c.MakePayloadFilename()
-
-    // c.Lock()
-    // defer c.Unlock()
-
-    err := ioutil.WriteFile(filename, payloadBytes, 0744)
-    return filename, err
-}
-
-func (c *Channel) Pop() ([]byte, error) {
-    files, _ := ioutil.ReadDir(c.fullpath + "/current")
-    file     := files[0]
-    current  := c.fullpath + "/current"
-    deleted  := c.fullpath + "/deleted"
-
-    os.Rename(current + "/" + file.Name(), deleted + "/" + file.Name())
-
-    payloadBytes, err := ioutil.ReadFile(deleted + "/" + file.Name())
-    return payloadBytes, err
-}
 
 func DefaultPath() (string, error) {
     currentUser, err := user.Current()
@@ -71,33 +14,101 @@ func DefaultPath() (string, error) {
     return currentUser.HomeDir + "/fsqueue-data", err
 }
 
-func Fullpath(chanName string) (string, error) {
+func FullPath(chanName string) (string, error) {
     defaultPath, err := DefaultPath()
+
     return defaultPath + "/" + chanName, err
 }
 
-func Get(chanName string) (*Channel, error) {
-    fullpath, err := Fullpath(chanName)
-    return &Channel{name: chanName, fullpath: fullpath}, err
+func NewChannel(chanName string) (*Channel, error) {
+    fullPath, err := FullPath(chanName)
+    channel       := &Channel{}
+
+    channel.name        = chanName
+    channel.fullPath    = fullPath
+    channel.currentPath = fullPath + "/current"
+    channel.failedPath  = fullPath + "/failed"
+    channel.successPath = fullPath + "/success"
+    channel.deletedPath = fullPath + "/deleted"
+
+    return channel, err
 }
 
 func MakeChannel(chanName string) (*Channel, error) {
-    channel, err := Get(chanName)
+    channel, err := NewChannel(chanName)
 
-    if err != nil {
-        return channel, err
+    if err == nil {
+        err = channel.MakeDirs()
     }
 
-    err = channel.MakeDirs()
     return channel, err
 }
 
 func RemoveChannel(chanName string) error {
-    channel, err := Get(chanName)
+    channel, err := NewChannel(chanName)
 
-    if err != nil {
-        return err
-    }
+    if err != nil { return err }
 
     return channel.Remove()
 }
+
+type Channel struct {
+    name        string
+    fullPath    string
+    currentPath string
+    failedPath  string
+    successPath string
+    deletedPath string
+}
+
+func (c *Channel) MakeDirs() error {
+    err := os.MkdirAll(c.currentPath, 0744)
+    if err != nil { return err }
+
+    err = os.MkdirAll(c.failedPath, 0744)
+    if err != nil { return err }
+
+    err = os.MkdirAll(c.successPath, 0744)
+    if err != nil { return err }
+
+    err = os.MkdirAll(c.deletedPath, 0744)
+    return err
+}
+
+func (c *Channel) Remove() error {
+    return os.RemoveAll(c.fullPath)
+}
+
+func (c *Channel) PayloadId() (string, string) {
+    id           := strconv.FormatInt(time.Now().UnixNano(), 10)
+    fullFilePath := c.currentPath + "/" + id
+    return id, fullFilePath
+}
+
+func (c *Channel) Push(payloadBytes []byte) (string, string, error) {
+    id, fullFilePath := c.PayloadId()
+    err := ioutil.WriteFile(fullFilePath, payloadBytes, 0744)
+
+    return id, fullFilePath, err
+}
+
+func (c *Channel) Pop() ([]byte, error) {
+    files, _ := ioutil.ReadDir(c.currentPath)
+
+    if len(files) <= 0 {
+        return nil, nil
+    }
+
+    file    := files[0]
+    current := c.currentPath + "/" + file.Name()
+    deleted := c.deletedPath + "/" + file.Name()
+
+    os.Rename(current, deleted)
+
+    payloadBytes, err := ioutil.ReadFile(deleted)
+
+    go os.Remove(deleted)
+
+    return payloadBytes, err
+}
+
