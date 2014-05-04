@@ -6,6 +6,7 @@ import (
     "time"
     "strconv"
     "io/ioutil"
+    "reflect"
 )
 
 func DefaultPath() (string, error) {
@@ -87,8 +88,48 @@ func (c *Channel) PayloadId() (string, string) {
     return id, fullFilePath
 }
 
+func (c *Channel) Payloads(bucket string) ([]os.FileInfo, error) {
+    bucketPath := reflect.Indirect(reflect.ValueOf(c)).FieldByName(bucket + "Path")
+
+    return ioutil.ReadDir(bucketPath.String())
+}
+
+func (c *Channel) Count(bucket string) (int, error) {
+    files, err := c.Payloads(bucket)
+
+    if err != nil { return 0, err }
+
+    return len(files), err
+}
+
+func (c *Channel) Oldest(bucket string) ([]byte, error) {
+    files, err := c.Payloads(bucket)
+
+    if err != nil { return nil, err }
+
+    if len(files) <= 0 { return nil, nil }
+
+    bucketPath := reflect.Indirect(reflect.ValueOf(c)).FieldByName(bucket + "Path")
+
+    return ioutil.ReadFile(bucketPath.String() + "/" + files[0].Name())
+}
+
+func (c *Channel) Newest(bucket string) ([]byte, error) {
+    files, err := c.Payloads(bucket)
+    numFiles   := len(files)
+
+    if err != nil { return nil, err }
+
+    if numFiles <= 0 { return nil, nil }
+
+    bucketPath := reflect.Indirect(reflect.ValueOf(c)).FieldByName(bucket + "Path")
+
+    return ioutil.ReadFile(bucketPath.String() + "/" + files[numFiles - 1].Name())
+}
+
 func (c *Channel) Push(payloadBytes []byte) (string, string) {
     id, fullFilePath := c.PayloadId()
+
     go func() {
         ioutil.WriteFile(fullFilePath, payloadBytes, 0744)
         c.donePushChan <- true
@@ -98,7 +139,7 @@ func (c *Channel) Push(payloadBytes []byte) (string, string) {
 }
 
 func (c *Channel) Pop() ([]byte, error) {
-    files, _ := ioutil.ReadDir(c.currentPath)
+    files, _ := c.Payloads("current")
 
     if len(files) <= 0 {
         return nil, nil
