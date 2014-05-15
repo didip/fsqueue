@@ -74,10 +74,16 @@ func TestCount(t *testing.T) {
 }
 
 func TestOldestNewest(t *testing.T) {
-    chanName := "fsqueue-test"
+    chanName   := "fsqueue-test"
+    channel, _ := MakeChannel(chanName)
 
-    channel, _  := MakeChannel(chanName)
     channel.Push([]byte("{\"method\": \"Run\"}"))
+    <- channel.donePushChan
+
+    if count, _ := channel.Count("current"); count != 1 {
+        t.Fatal("Channel current bucket should contain 1 items")
+    }
+
     channel.Push([]byte("{\"method\": \"Run2\"}"))
     <- channel.donePushChan
 
@@ -88,13 +94,13 @@ func TestOldestNewest(t *testing.T) {
     data, _ := channel.Oldest("current")
 
     if bytes.Compare([]byte("{\"method\": \"Run\"}"), data) != 0 {
-        t.Fatal("Payload doesn't match data")
+        t.Fatal("Payload doesn't match data: ", data)
     }
 
     data, _ = channel.Newest("current")
 
     if bytes.Compare([]byte("{\"method\": \"Run2\"}"), data) != 0 {
-        t.Fatal("Payload doesn't match data")
+        t.Fatal("Payload doesn't match data: ", data)
     }
 
     RemoveChannel(chanName)
