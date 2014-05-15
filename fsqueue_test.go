@@ -4,6 +4,7 @@ import (
     "os"
     "bytes"
     "testing"
+    "runtime"
 )
 
 func TestMakeThenRemove(t *testing.T) {
@@ -107,6 +108,48 @@ func TestOldestNewest(t *testing.T) {
 }
 
 
+func BenchmarkPush(b *testing.B) {
+    b.StopTimer()
+
+    chanName := "fsqueue-test"
+    data     := []byte("{\"method\": \"Run\"}")
+
+    channel, _ := MakeChannel(chanName)
+
+    runtime.GOMAXPROCS(runtime.NumCPU())
+
+    b.StartTimer()
+
+    for n := 0; n < b.N; n++ {
+        go channel.Push(data)
+    }
+
+    b.StopTimer()
+}
+
+//
+// Depends on BenchmarkPush payloads
+//
+func BenchmarkPop(b *testing.B) {
+    b.StopTimer()
+
+    chanName := "fsqueue-test"
+
+    channel, _ := MakeChannel(chanName)
+
+    runtime.GOMAXPROCS(runtime.NumCPU())
+
+    b.StartTimer()
+
+    for n := 0; n < b.N; n++ {
+        go channel.Pop()
+    }
+
+    b.StopTimer()
+
+    RemoveChannel(chanName)
+}
+
 func BenchmarkPushPop(b *testing.B) {
     b.StopTimer()
 
@@ -114,6 +157,8 @@ func BenchmarkPushPop(b *testing.B) {
     data     := []byte("{\"method\": \"Run\"}")
 
     channel, _ := MakeChannel(chanName)
+
+    runtime.GOMAXPROCS(runtime.NumCPU())
 
     b.StartTimer()
 
