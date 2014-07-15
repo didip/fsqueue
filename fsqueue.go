@@ -127,7 +127,7 @@ func (c *Channel) Newest(bucket string) ([]byte, error) {
     return ioutil.ReadFile(bucketPath.String() + "/" + files[numFiles - 1].Name())
 }
 
-func (c *Channel) Push(payloadBytes []byte) (string, string) {
+func (c *Channel) PushBytes(payloadBytes []byte) (string, string) {
     id, fullFilePath := c.PayloadId()
 
     go func() {
@@ -138,7 +138,7 @@ func (c *Channel) Push(payloadBytes []byte) (string, string) {
     return id, fullFilePath
 }
 
-func (c *Channel) Pop() ([]byte, error) {
+func (c *Channel) PopBytes() ([]byte, error) {
     files, _ := c.Payloads("current")
 
     if len(files) <= 0 {

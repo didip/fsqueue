@@ -24,7 +24,7 @@ func TestPush(t *testing.T) {
     data     := []byte("{\"method\": \"Run\"}")
 
     channel, _  := MakeChannel(chanName)
-    _, filename := channel.Push(data)
+    _, filename := channel.PushBytes(data)
     <- channel.donePushChan
 
     if _, err := os.Stat(filename); os.IsNotExist(err) {
@@ -39,10 +39,10 @@ func TestPop(t *testing.T) {
     data     := []byte("{\"method\": \"Run\"}")
 
     channel, _  := MakeChannel(chanName)
-    channel.Push(data)
+    channel.PushBytes(data)
     <- channel.donePushChan
 
-    payload, err := channel.Pop()
+    payload, err := channel.PopBytes()
 
     if err != nil { t.Fatal(err) }
 
@@ -58,14 +58,14 @@ func TestCount(t *testing.T) {
     data     := []byte("{\"method\": \"Run\"}")
 
     channel, _  := MakeChannel(chanName)
-    channel.Push(data)
+    channel.PushBytes(data)
     <- channel.donePushChan
 
     if count, _ := channel.Count("current"); count != 1 {
         t.Fatal("Channel current bucket should contain 1 item")
     }
 
-    channel.Pop()
+    channel.PopBytes()
 
     if count, _ := channel.Count("deleted"); count != 1 {
         t.Fatal("Channel deleted bucket should contain 1 item")
@@ -78,14 +78,14 @@ func TestOldestNewest(t *testing.T) {
     chanName   := "fsqueue-test"
     channel, _ := MakeChannel(chanName)
 
-    channel.Push([]byte("{\"method\": \"Run\"}"))
+    channel.PushBytes([]byte("{\"method\": \"Run\"}"))
     <- channel.donePushChan
 
     if count, _ := channel.Count("current"); count != 1 {
         t.Fatal("Channel current bucket should contain 1 items")
     }
 
-    channel.Push([]byte("{\"method\": \"Run2\"}"))
+    channel.PushBytes([]byte("{\"method\": \"Run2\"}"))
     <- channel.donePushChan
 
     if count, _ := channel.Count("current"); count != 2 {
@@ -107,49 +107,6 @@ func TestOldestNewest(t *testing.T) {
     RemoveChannel(chanName)
 }
 
-
-func BenchmarkPush(b *testing.B) {
-    b.StopTimer()
-
-    chanName := "fsqueue-test"
-    data     := []byte("{\"method\": \"Run\"}")
-
-    channel, _ := MakeChannel(chanName)
-
-    runtime.GOMAXPROCS(runtime.NumCPU())
-
-    b.StartTimer()
-
-    for n := 0; n < b.N; n++ {
-        go channel.Push(data)
-    }
-
-    b.StopTimer()
-}
-
-//
-// Depends on BenchmarkPush payloads
-//
-func BenchmarkPop(b *testing.B) {
-    b.StopTimer()
-
-    chanName := "fsqueue-test"
-
-    channel, _ := MakeChannel(chanName)
-
-    runtime.GOMAXPROCS(runtime.NumCPU())
-
-    b.StartTimer()
-
-    for n := 0; n < b.N; n++ {
-        go channel.Pop()
-    }
-
-    b.StopTimer()
-
-    RemoveChannel(chanName)
-}
-
 func BenchmarkPushPop(b *testing.B) {
     b.StopTimer()
 
@@ -163,8 +120,8 @@ func BenchmarkPushPop(b *testing.B) {
     b.StartTimer()
 
     for n := 0; n < b.N; n++ {
-        go channel.Push(data)
-        go channel.Pop()
+        go channel.PushBytes(data)
+        go channel.PopBytes()
     }
 
     b.StopTimer()
